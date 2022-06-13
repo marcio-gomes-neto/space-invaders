@@ -1,3 +1,4 @@
+import random
 from threading import Timer
 import pygame, sys
 from entities.player import Player
@@ -5,7 +6,11 @@ from entities.gamewindow import GameWindow
 from services.button import Button
 from services.alienselector import MenuAlien
 from entities.stage import Stage
+from entities.powerup import PowerUp
+from services.explosion import Explosion
+from entities.ultimate import Ultimate
 # initializing pygame
+
 
 global newGame
 global playerOne
@@ -13,14 +18,16 @@ global playerOne
 newGame = GameWindow(800, 800, 'assets/icon/spaceship1.png', 'Space Invaders')
 playerOne = Player(370, 723, "assets/icon/spaceship1.png")
 
-newGame.playBackgroundMusic('assets/sound/menu.mp3', 'main-menu')
-newGame.soundMixer.init()
 
 def get_font(size):
     return pygame.font.Font("assets/font/font.ttf", size)
 
 def mainMenu():
+    if newGame.music != 'main-menu':
+        newGame.playBackgroundMusic('assets/sound/menu.mp3', 'main-menu')
+
     newGame.prepareBackground('assets/background/menu.png')
+    newGame.soundMixer.init()
     running = True
     menuAlien = MenuAlien(280, 480)
 
@@ -29,8 +36,8 @@ def mainMenu():
 
     while running:
 
-        alienSelector.update()
         alienSelector.draw(newGame.screen)
+        alienSelector.update()
 
         newGame.clock.tick(5)
 
@@ -45,11 +52,12 @@ def mainMenu():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
                     pygame.draw.rect(newGame.screen, (0, 0, 0), menuAlien.rect)
-                    menuAlien.moveDown()
+                    menuAlien.moveDown(newGame)
                 if event.key == pygame.K_UP:
                     pygame.draw.rect(newGame.screen, (0, 0, 0), menuAlien.rect)
-                    menuAlien.moveUp()
+                    menuAlien.moveUp(newGame)
                 if event.key == pygame.K_SPACE:
+                    newGame.playSound('assets/sound/menu-change.wav')
                     if menuAlien.menuButton == "play":
                         newGame.stage = 1
                         play()
@@ -69,13 +77,18 @@ def play():
     stage = Stage()
     bulletGroup = pygame.sprite.Group()
     enemyGroup = pygame.sprite.Group()
+    enemyBulletGroup = pygame.sprite.Group()
     playerGroup = pygame.sprite.Group()
+    powerUpGroup = pygame.sprite.Group()
+    allyGroup = pygame.sprite.Group()
+    allyBulletGroup = pygame.sprite.Group()
+    explosionGroup = pygame.sprite.Group()
     x = 1
     spawnRate = 0
 
 
-    newGame.status = 'running'
-    playerOne.setWhichWeapon()
+    # newGame.status = 'running'
+    # playerOne.setWhichWeapon()
 
 
     while running:
@@ -83,12 +96,13 @@ def play():
             stage.prepareBackground(newGame, 'assets/background/background' + str(stage.level) + '.png')
             stage.status = 'ready'
         newGame.clock.tick(350)
-        newGame.moveBackground()
         playerGroup.add(playerOne)
         if newGame.status == 'waiting':
+            newGame.moveBackground()
             if newGame.music != 'waiting-menu':
                 newGame.playBackgroundMusic('assets/sound/waiting-menu.wav', 'waiting-menu')
-            if newGame.stage == 1:
+            if stage.level == 1:
+                playerOne.playerWeapon = 1
                 playerOne.setWhichWeapon()
 
             newGame.printText('LEVEL ' + str(stage.level), '#006600', 300, 300, 40)
@@ -102,9 +116,14 @@ def play():
                         newGame.playTime = 0
                         newGame.status = 'starting'
 
+            newGame.simpleRenderer(playerOne.x, playerOne.y, playerOne.icon)
         elif newGame.status == 'starting':
+            newGame.moveBackground()
             newGame.playTime += 1
             if newGame.playTime == 350:
+                bulletGroup.empty()
+                enemyGroup.empty()
+                enemyBulletGroup.empty()
                 newGame.playSound('assets/sound/letsrock.wav')
 
             if newGame.playTime <= 400:
@@ -114,8 +133,11 @@ def play():
             elif newGame.playTime <= 1200:
                 newGame.printText('1', '#006600', 370, 325, 75)
 
+            newGame.simpleRenderer(playerOne.x, playerOne.y, playerOne.icon)
             playerOne.movement = 0
         elif newGame.status == 'running':
+            newGame.moveBackground()
+            playerOne.setWhichWeapon()
             if newGame.music != 'level':
                 newGame.playBackgroundMusic('assets/sound/level' + str(stage.level) + '.wav', 'level')
             if newGame.playTime == 1234:
@@ -125,14 +147,12 @@ def play():
             if newGame.playTime <= 2000:
                 newGame.printText('LETS ROCK!', '#006600', 150, 325, 75)
 
-            if playerOne.score < 25:
-                stage.startStage(spawnRate, enemyGroup)
-                enemyGroup.draw(newGame.screen)
-                enemyGroup.update()
-            if 25 <= playerOne.score < 86:
-                stage.startStage(spawnRate, enemyGroup)
-                enemyGroup.draw(newGame.screen)
-                enemyGroup.update()
+            stage.startStage(spawnRate, enemyGroup, enemyBulletGroup)
+            enemyGroup.draw(newGame.screen)
+            enemyGroup.update()
+
+            enemyBulletGroup.draw(newGame.screen)
+            enemyBulletGroup.update(1)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -145,10 +165,19 @@ def play():
 
                         playerOne.moveRight()
                     if event.key == pygame.K_SPACE:
-                        if len(bulletGroup) <= 1:
+                        if len(bulletGroup) < playerOne.weapon.numberActive:
                             playerOne.shooting = True
                             shot = playerOne.shot(newGame)
                             bulletGroup.add(shot)
+
+                    if event.key == pygame.K_e:
+                        if playerOne.playerUltimate == 3:
+                            newGame.playSound('assets/sound/ultimate.wav')
+                            ultimate = Ultimate()
+                            ultimate.spawnFighters(allyGroup, playerOne.iconPath)
+
+                            playerOne.playerUltimate = 0
+                            playerOne.shooting = True
 
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_LEFT:
@@ -161,34 +190,183 @@ def play():
 
             if playerOne.shooting:
                 bulletGroup.draw(newGame.screen)
-                bulletGroup.update(playerOne.weapon.bulletSpeed, shot)
+                bulletGroup.update(playerOne.weapon.bulletSpeed, 0)
 
                 if len(bulletGroup) == 0:
                     playerOne.shooting = False
 
-            # movement of the invader
-            if pygame.sprite.groupcollide(playerGroup, enemyGroup, False, False):
-                newGame.playSound('assets/sound/death.wav')
-                # pygame.time.wait(3000000)
-            if pygame.sprite.groupcollide(enemyGroup, bulletGroup, True, True):
+            if playerOne.score == 70 and not stage.stageTwoPower:
+                newGame.spawnedPower = 2
+                powerUpGroup.add(PowerUp(random.randint(50, 750), 0, 0,  'assets/icon/box1.png'))
+                stage.stageTwoPower = True
+
+            if playerOne.score == 132 and not stage.stageThreePower:
+                newGame.spawnedPower = 3
+                powerUpGroup.add(PowerUp(random.randint(50, 750), 0, 0, 'assets/icon/box2.png'))
+                stage.stageThreePower = True
+
+
+            # collisions
+            pygame.sprite.groupcollide(allyGroup, enemyBulletGroup, False, True)
+
+            if pygame.sprite.groupcollide(allyBulletGroup, enemyGroup, True, True):
                 if stage.level == 1 or stage.level == 2:
                     playerOne.score += 1
+                if stage.level == 3:
+                    playerOne.score += 4
+                if stage.level == 4:
+                    playerOne.score += 8
+
+            if pygame.sprite.groupcollide(playerGroup, powerUpGroup, False, True):
+                playerOne.playerWeapon = newGame.spawnedPower
+
+            if pygame.sprite.groupcollide(playerGroup, enemyGroup, False, False):
+                newGame.playSound('assets/sound/death.wav')
+                playerOne.lives -= 1
+                if playerOne.lives == -1:
+                    newGame.playBackgroundMusic('assets/sound/game-over.wav', 'game-over')
+                newGame.status = 'death'
+                explosionGroup.add(Explosion(playerOne.x - 60, playerOne.y - 30))
+
+            if playerOne.playerWeapon == 2:
+                if pygame.sprite.groupcollide(enemyGroup, bulletGroup, True, False):
+                    bulletGroup.update(playerOne.weapon.bulletSpeed, 1)
+                    if stage.level == 1 or stage.level == 2:
+                        playerOne.score += 1
+                    if stage.level == 3:
+                        playerOne.score += 4
+                    if stage.level == 4:
+                        playerOne.score += 8
+            else:
+                if pygame.sprite.groupcollide(enemyGroup, bulletGroup, True, True):
+                    if stage.level == 1 or stage.level == 2:
+                        playerOne.score += 1
+                    if stage.level == 3:
+                        playerOne.score += 4
+                    if stage.level == 4:
+                        playerOne.score += 8
+
+            if pygame.sprite.groupcollide(playerGroup, enemyBulletGroup, True, True):
+                newGame.playSound('assets/sound/death.wav')
+                playerOne.lives -= 1
+                if playerOne.lives == -1:
+                    newGame.playBackgroundMusic('assets/sound/game-over.wav', 'game-over')
+                newGame.status = 'death'
+                explosionGroup.add(Explosion(playerOne.x - 60, playerOne.y - 30))
 
             if playerOne.x <= 13:
                 playerOne.x = 13
             elif playerOne.x >= 726:
                 playerOne.x = 726
 
-        if playerOne.score == newGame.nextLevel:
-            newGame.updateNextLevelScore(stage.level + 1)
-            stage.level += 1
-            newGame.status = 'waiting'
-            stage.status = 'waiting'
-            playerOne.x = 370
-            playerOne.y = 723
+            if playerOne.score == 440:
+                newGame.status = 'win'
+                newGame.playBackgroundMusic('assets/sound/win.wav', 'win')
 
-        newGame.simpleRenderer(playerOne.x, playerOne.y, playerOne.icon)
+            if playerOne.score == newGame.nextLevel and not newGame.status == 'win':
+                newGame.updateNextLevelScore(stage.level + 1)
+                stage.level += 1
+                newGame.status = 'waiting'
+                stage.status = 'waiting'
+                playerOne.playerUltimate += 1
+                playerOne.x = 370
+                playerOne.y = 723
+
+            if playerOne.score >= 200 and not newGame.firstWin:
+                newGame.winTextTimer += 1
+                if newGame.winTextTimer < 1000:
+                    newGame.printText('You    Saved    the', '#006600', 190, 325, 40)
+                    newGame.printText('Anima Galaxy!', '#592c82', 220, 380, 40)
+
+                if 1000 < newGame.winTextTimer < 2000:
+                    newGame.printText('Keep Going!', '#006600', 225, 400, 50)
+
+                if newGame.winTextTimer > 2000:
+                    newGame.firstWin = True
+            powerUpGroup.draw(newGame.screen)
+            powerUpGroup.update()
+            newGame.simpleRenderer(playerOne.x, playerOne.y, playerOne.icon)
+
+            allyGroup.draw(newGame.screen)
+            allyGroup.update(allyBulletGroup)
+
+            allyBulletGroup.draw(newGame.screen)
+            allyBulletGroup.update(3, 0)
+
+        elif newGame.status == 'death':
+            newGame.moveBackground()
+            newGame.updateLives(playerOne.lives, playerOne.icon)
+            playerOne.movement = 0
+            if explosionGroup.update():
+                explosionGroup.update()
+
+            explosionGroup.draw(newGame.screen)
+
+            if stage.level == 1:
+                playerOne.score = 0
+            if stage.level == 2:
+                playerOne.score = 25
+            if stage.level == 3:
+                playerOne.score = 80
+            if stage.level == 4:
+                playerOne.score = 151
+
+            if playerOne.lives == -1:
+                newGame.printText('GAME OVER!', '#CF000F', 180, 330, 70)
+                newGame.printText('PRESS ENTER', '#CF000F', 280, 420, 30)
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_RETURN:
+                            playerOne.x = 370
+                            playerOne.y = 723
+                            playerOne.lives = 3
+                            playerOne.score = 0
+                            stage.level = 1
+                            stage.status = 'waiting'
+                            newGame.status = 'waiting'
+
+                            mainMenu()
+
+            if playerOne.lives >=0:
+                newGame.printText('YOU DIED!', '#CF000F', 210, 330, 70)
+                newGame.printText('PRESS ENTER TO TRY AGAIN', '#CF000F', 160, 420, 30)
+
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_RETURN:
+                            playerOne.x = 370
+                            playerOne.y = 723
+                            stage.status = 'waiting'
+                            newGame.status = 'waiting'
+
+        elif newGame.status == 'win':
+            newGame.moveBackground()
+            newGame.simpleRenderer(playerOne.x, playerOne.y, playerOne.icon)
+            newGame.printText('YOU WIN!', '#006600', 220, 330, 70)
+            newGame.printText('PRESS ENTER', '#006600', 270, 420, 30)
+
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        playerOne.x = 370
+                        playerOne.y = 723
+                        playerOne.lives = 3
+                        playerOne.score = 0
+                        stage.level = 1
+                        stage.status = 'waiting'
+                        newGame.status = 'waiting'
+
+                        mainMenu()
+
+        playerOne.drawUltimate(newGame)
         newGame.updateScore(playerOne.score)
+        newGame.updateObjective()
         newGame.updateLives(playerOne.lives, playerOne.icon)
         pygame.display.update()
 
@@ -219,11 +397,11 @@ def options():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
                     pygame.draw.rect(newGame.screen, (0, 0, 0), menuAlien.rect)
-                    menuAlien.moveDownOption()
+                    menuAlien.moveDownOption(newGame)
 
                 if event.key == pygame.K_UP:
                     pygame.draw.rect(newGame.screen, (0, 0, 0), menuAlien.rect)
-                    menuAlien.moveUpOption()
+                    menuAlien.moveUpOption(newGame)
 
                 if event.key == pygame.K_SPACE:
                     if menuAlien.menuButton == "music":
@@ -233,9 +411,11 @@ def options():
                         newGame.pausePlaySFX(soundFxButton)
 
                     if menuAlien.menuButton == "ship":
+                        newGame.playSound('assets/sound/menu-change.wav')
                         changeShip()
 
                     if menuAlien.menuButton == "back":
+                        newGame.playSound('assets/sound/menu-change.wav')
                         mainMenu()
 
         pygame.display.update()

@@ -9,8 +9,8 @@ class Enemy01(pygame.sprite.Sprite):
         self.phase = None
         self.image = pygame.image.load(iconPath)
         self.rect = self.image.get_rect(center=(posX, posY))
-        self.rect.w -= 8
-        self.rect.h -= 8
+        self.rect.w -= 4
+        self.rect.h -= 4
 
     def update(self):
         if self.rect.y == 18 and self.rect.x == 18:

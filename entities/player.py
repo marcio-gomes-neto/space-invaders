@@ -1,7 +1,6 @@
 import pygame
-from pygame import mixer
 from entities.weapon import Weapon
-from entities.bullet import Bullet
+from entities.bullets.bullet01 import Bullet01
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, posX, posY, iconPath):
@@ -16,6 +15,7 @@ class Player(pygame.sprite.Sprite):
         self.ship = 0
         self.lives = 3
         self.playerWeapon = 1
+        self.playerUltimate = 0
 
     def selectShip(self):
         self.icon = pygame.image.load(self.iconPath)
@@ -40,11 +40,34 @@ class Player(pygame.sprite.Sprite):
 
     def setWhichWeapon(self):
         if self.playerWeapon == 1:
-            self.weapon = Weapon(self.x + 31.5, 720, 'assets/sound/bullet.wav', 'assets/icon/bullet.png', 2)
+            self.weapon = Weapon(self.x + 31.5, 720, 'assets/sound/bullet.wav', 'assets/icon/bullet.png', 2,  2)
+
+        if self.playerWeapon == 2:
+            self.weapon = Weapon(self.x + 31.5, 720, 'assets/sound/bullet1.wav', 'assets/icon/bullet1.png', 2, 1)
+
+        if self.playerWeapon == 3:
+            self.weapon = Weapon(self.x + 31.5, 720, 'assets/sound/bullet2.wav', 'assets/icon/bullet2.png', 2, 5)
 
     def update(self):
         self.rect.x = self.x+24
 
+    def drawUltimate(self, newGame):
+        if self.playerUltimate == 0:
+            newGame.printText('Ultimate:', '#CF000F', 5, 775, 20)
+        if self.playerUltimate == 1:
+            newGame.printText('Ultimate:', '#CF000F', 5, 775, 20)
+            newGame.printText('I', '#CF000F', 135, 775, 20)
+        if self.playerUltimate == 2:
+            newGame.printText('Ultimate:', '#CF000F', 5, 775, 20)
+            newGame.printText('I', '#CF000F', 135, 775, 20)
+            newGame.printText('I', '#CF000F', 145, 775, 20)
+        if self.playerUltimate == 3:
+            newGame.printText('Ultimate:', '#006600', 5, 775, 20)
+            newGame.printText('I', '#006600', 135, 775, 20)
+            newGame.printText('I', '#006600', 145, 775, 20)
+            newGame.printText('I', '#006600', 155, 775, 20)
+            newGame.printText('  -  PRESS E', '#006600', 165, 775, 20)
+
     def shot(self, newGame):
         newGame.playSound(self.weapon.sound)
-        return Bullet(self.x + 31.5, self.weapon.y, self.weapon.icon)
+        return Bullet01(self.x + 31.5, self.weapon.y, self.weapon.icon)

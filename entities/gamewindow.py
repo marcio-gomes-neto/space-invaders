@@ -13,10 +13,13 @@ class GameWindow:
         pygame.display.set_icon(img)
         pygame.display.set_caption(description)
 
+        self.spawnedPower = 0
+        self.firstWin = False
+        self.winTextTimer = 0
         self.playTime = 0
         self.stage = 1
         self.status = 'waiting'
-        self.music = 'main-menu'
+        self.music = 'none'
         self.musicPaused = False
         self.sfxPaused = False
         self.nextLevel = 25
@@ -76,7 +79,7 @@ class GameWindow:
             button.update(self.screen)
 
     def pausePlaySFX(self, button):
-        if not self.musicPaused:
+        if not self.sfxPaused:
             self.sfxPaused = True
             button.changeColor('#b02134')
             button.update(self.screen)
@@ -93,6 +96,9 @@ class GameWindow:
     def updateScore(self, score):
         self.printText("Points: " + str(score), '#FFFFFF', 5, 5, 20)
 
+    def updateObjective(self):
+        self.printText("OBJ: " + str(self.nextLevel), '#FFFFFF', 200, 5, 20)
+
     def playFunction(self):
         self.status = 'running'
 
@@ -100,6 +106,6 @@ class GameWindow:
         if level == 2:
             self.nextLevel = 80
         if level == 3:
-            self.nextLevel = 150
+            self.nextLevel = 152
         if level == 4:
-            self.nextLevel = 200
+            self.nextLevel = 440
